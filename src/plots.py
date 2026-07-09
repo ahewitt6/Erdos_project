@@ -23,16 +23,32 @@ def _line_plot(backtests, column, ylabel, title, filename, output_dir):
     _save(Path(output_dir) / filename)
 
 
+def _spy_buy_and_hold_benchmark(reference_result):
+    """Create a same-scale SPY buy-and-hold benchmark from backtest stock prices."""
+    data = reference_result[["date", "stock_price"]].dropna().sort_values("date").copy()
+    initial_value = abs(float(reference_result["portfolio_value"].iloc[0]))
+    initial_stock_price = float(data["stock_price"].iloc[0])
+    shares = initial_value / initial_stock_price if initial_stock_price else 0.0
+    data["strategy"] = "SPY Buy-and-Hold"
+    data["portfolio_value"] = shares * data["stock_price"]
+    data["cumulative_pnl"] = data["portfolio_value"] - data["portfolio_value"].iloc[0]
+    data["stock_position"] = shares
+    data["transaction_cost"] = 0.0
+    return data
+
+
 def create_strategy_plots(dupire_result, nn_result, output_dir="results/plots"):
     """Save all requested backtest plots."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     results = [dupire_result, nn_result]
-    _line_plot(results, "portfolio_value", "Portfolio value", "Portfolio Value", "portfolio_value.png", output_dir)
-    _line_plot(results, "cumulative_pnl", "Cumulative P&L", "Cumulative P&L", "cumulative_pnl.png", output_dir)
+    results_with_spy = results + [_spy_buy_and_hold_benchmark(dupire_result)]
+
+    _line_plot(results_with_spy, "portfolio_value", "Portfolio value", "Portfolio Value", "portfolio_value.png", output_dir)
+    _line_plot(results_with_spy, "cumulative_pnl", "Cumulative P&L", "Cumulative P&L", "cumulative_pnl.png", output_dir)
     _line_plot(results, "hedging_error", "Hedging error", "Daily Hedging Error", "daily_hedging_error.png", output_dir)
-    _line_plot(results, "stock_position", "Shares", "Stock Hedge Position", "stock_hedge_position.png", output_dir)
-    _line_plot(results, "transaction_cost", "Transaction cost", "Transaction Costs", "transaction_costs.png", output_dir)
+    _line_plot(results_with_spy, "stock_position", "Shares", "Stock Position", "stock_hedge_position.png", output_dir)
+    _line_plot(results_with_spy, "transaction_cost", "Transaction cost", "Transaction Costs", "transaction_costs.png", output_dir)
 
     plt.figure(figsize=(9, 5))
     for data in results:
